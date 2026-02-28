@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Order Demo</title>
+</head>
+<body>
+    <h2>Order Execution Engine</h2>
+
+    <!-- Market Order Form -->
+    <form id="frm">
+        token_in: <input id="in" value="SOL"/><br/>
+        token_out: <input id="out" value="USDC"/><br/>
+        amount: <input id="amt" value="1"/><br/>
+        <button type="submit">Submit Market Order</button>
+    </form>
+
+    <!-- Additional Buttons -->
+    <button id="fetchStatus">Fetch Order Status</button>
+    <button id="clearLog">Clear Log</button>
+
+    <!-- Log output -->
+    <pre id="log" style="background:#f4f4f4;padding:10px;"></pre>
+
+    <script>
+        const logEl = document.getElementById('log');
+        let currentOrderId = null;
+        let ws = null;
+
+        function log(v){ logEl.textContent += v + "\n"; }
+
+        // Submit Market Order
+        document.getElementById('frm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const token_in = document.getElementById('in').value;
+            const token_out = document.getElementById('out').value;
+            const amount = parseFloat(document.getElementById('amt').value);
+
+            const res = await fetch('/api/orders/execute', {
+                method:'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({token_in, token_out, amount})
+            });
+            const j = await res.json();
+            currentOrderId = j.orderId;
+            log('submitted -> orderId=' + currentOrderId);
+
+            // Open WebSocket
+            if(ws) ws.close();
+            ws = new WebSocket(`ws://${location.host}/api/orders/execute?orderId=${currentOrderId}`);
+            ws.onopen = () => log('WebSocket connected');
+            ws.onmessage = (ev) => log('WS: ' + ev.data);
+            ws.onclose = () => log('WebSocket closed');
+        });
+
+        // Fetch Order Status
+        document.getElementById('fetchStatus').addEventListener('click', async () => {
+            if(!currentOrderId) return log("No orderId yet");
+            const res = await fetch(`/api/orders/${currentOrderId}`);
+            if(res.ok){
+                const data = await res.json();
+                log('Order Status: ' + JSON.stringify(data));
+            } else {
+                log('Failed to fetch order status');
+            }
+        });
+
+        // Clear log
+        document.getElementById('clearLog').addEventListener('click', () => {
+            logEl.textContent = '';
+        });
+    </script>
+</body>
+</html>
